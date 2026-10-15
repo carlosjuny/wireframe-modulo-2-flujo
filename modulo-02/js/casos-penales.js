@@ -1711,6 +1711,8 @@ function onRoleChangeCP(){
   const ETIQ_CASOS = {socio:'Casos de la firma', director:'Portafolio de casos', abogado:'Mis casos', investigador:'Mis asignaciones', cliente:'Mi caso'};
   setSlot('icon-slot-casos', I('folder') + `<span>${ETIQ_CASOS[currentRoleId] || 'Casos Penales'}</span>`);
   document.getElementById('icon-slot-ejecutiva').classList.toggle('hidden-by-role', !can('ejecutiva'));
+  document.getElementById('icon-slot-agentes').classList.toggle('hidden-by-role', esCliente);
+  if(esCliente && currentView==='agentes') goView('casos');
   updateBell();
   if(currentView==='ejecutiva' && !can('ejecutiva')){ goView('casos'); return; }
   if(currentView==='casos'){
