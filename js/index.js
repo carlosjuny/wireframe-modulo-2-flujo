@@ -9,12 +9,12 @@ const PERFILES = [
    permisos:['Crear','Editar','Asignar','Revisar','Aprobar'], casos:'Todos los casos', vista:'casos'},
   {rol:'abogado', nombre:'Laura Ospina', ini:'LO', rolNombre:'Abogado', email:'laura.ospina@priascadavid.com', desc:'Ejecuta el trabajo jurídico: documentos, pruebas, actuaciones e IA.',
    permisos:['Crear/editar asignados','Cargar documentos','Revisar IA'], casos:'Casos asignados a su equipo', vista:'casos'},
-  {rol:'administrativo', nombre:'Andrés Molina', ini:'AM', rolNombre:'Administrativo', email:'andres.molina@priascadavid.com', desc:'Carga documentos y presta soporte operativo.',
-   permisos:['Carga documental','Consulta limitada'], casos:'Casos autorizados', vista:'casos'},
+  {rol:'investigador', nombre:'Andrés Molina', ini:'AM', rolNombre:'Investigador', email:'andres.molina@priascadavid.com', desc:'Investiga hechos, recolecta y carga evidencias y registra hallazgos.',
+   permisos:['Sus asignaciones','Cargar evidencias','Registrar hallazgos'], casos:'Casos asignados', vista:'casos'},
   {rol:'cliente', nombre:'Constructora Andina S.A.S.', ini:'CL', rolNombre:'Cliente externo', email:'contacto@constructoraandina.com', desc:'Consulta únicamente información autorizada por el equipo jurídico.',
    permisos:['Lectura restringida','Descarga controlada'], casos:'Solo su caso (información autorizada)', vista:'casos'},
 ];
-const SENSIBILIDAD = {socio:'Interna · Confidencial · Reservada', director:'Interna · Confidencial · Reservada', abogado:'Interna · Confidencial · Reservada (casos asignados)', administrativo:'Interna · Confidencial', cliente:'Solo información autorizada'};
+const SENSIBILIDAD = {socio:'Interna · Confidencial · Reservada', director:'Interna · Confidencial · Reservada', abogado:'Interna · Confidencial · Reservada (casos asignados)', investigador:'Interna · Confidencial', cliente:'Solo información autorizada'};
 
 const $ = id => document.getElementById(id);
 let perfil = null;

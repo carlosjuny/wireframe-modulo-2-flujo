@@ -1553,51 +1553,75 @@ function decisionesPendientes(){
   });
   return out;
 }
+/* ---------- DASHBOARD PERSONALIZADO POR ROL ---------- */
+const DASH_SUB = {
+  socio:'Visión de toda la firma: avance, riesgos, casos críticos, decisiones pendientes y desempeño de los equipos.',
+  director:'Visión de tu equipo: casos, vencimientos, revisiones pendientes y productividad de Abogados e Investigadores.',
+  abogado:'Tus casos asignados: audiencias, tareas, evidencias por verificar y entregas del Investigador.',
+  investigador:'Tus asignaciones: tareas, evidencias por recolectar, entrevistas, visitas y entregas pendientes.',
+};
 function renderEjecutiva(){
   const B = document.getElementById('exBody');
   if(!can('ejecutiva')){ B.innerHTML = '<div class="empty">Tu rol no tiene acceso al Dashboard.</div>'; return; }
+  const sub = document.querySelector('#view-ejecutiva .section-head p'); if(sub) sub.textContent = DASH_SUB[currentRoleId] || '';
+  const role = currentRoleId, me = currentUser().id;
   const vis = casosVisibles(), act = vis.filter(esActivo);
   const avg = act.length ? Math.round(act.reduce((s,c)=>s+c.progreso,0)/act.length) : 0;
   const crit = act.filter(esCritico);
   const dec = decisionesPendientes();
-  const tVenc = act.flatMap(c=>c.tareas.filter(t=>t.estado!=='Completada' && diasHasta(t.fecha)<0));
+  const abiertas = c => c.tareas.filter(t=>t.estado!=='Completada');
+  const misTareas = act.flatMap(c=> abiertas(c).filter(t=>t.resp===me).map(t=>({c,t})));
+  const tareasEq = act.flatMap(c=> abiertas(c).map(t=>({c,t})));
+  const venc = list => list.filter(x=>diasHasta(x.t.fecha)<0);
   const iaP = vis.reduce((s,c)=>s+c.ia.filter(a=>a.estado==='pendiente').length,0);
+  const agenda = act.flatMap(c=> c.actuaciones.filter(x=>x.estado!=='Realizada' && diasHasta(x.fecha)>=0).map(x=>({c,x}))).sort((p,q)=>p.x.fecha.localeCompare(q.x.fecha));
+  const agendaMia = agenda.filter(p=>p.x.resp===me);
+  const evPend = act.flatMap(c=> c.matriz.filter(m=>m.estado!=='verificada').map(m=>({c,m})));
+  const evInv = act.flatMap(c=> c.matriz.filter(m=>m.resp==='investigador').map(m=>({c,m})));
+  const evInvRev = evInv.filter(p=>p.m.estado==='revision');
+  const evInvPend = evInv.filter(p=>p.m.estado==='pendiente');
+  const trabajoCampo = agendaMia.filter(p=>['Entrevista','Visita / verificación de campo','Hallazgo de investigación'].includes(p.x.tipo));
+  const proxVenc = act.reduce((n,c)=> n + alertasCaso(c).filter(a=>['Próximo vencimiento','Vencimiento crítico','Próximo vencimiento procesal','Vencimiento procesal vencido'].includes(a.tipo)).length, 0);
   const prod = {}; vis.forEach(c=> c.tareas.forEach(t=>{ prod[t.resp]=prod[t.resp]||{c:0,a:0,v:0}; if(t.estado==='Completada') prod[t.resp].c++; else { prod[t.resp].a++; if(diasHasta(t.fecha)<0) prod[t.resp].v++; } }));
+
+  const kpi = (cls,n,l) => `<div class="kpi ${cls}"><b>${n}</b><span>${l}</span></div>`;
+  const panel = (title,subt,body) => `<div class="panel"><div class="panel-head"><h3>${title}</h3>${subt!==''?`<span class="muted small">${subt}</span>`:''}</div><div class="ex-panel-body">${body}</div></div>`;
+  const open = (c,tab) => `data-open="${c.id}" data-tab="${tab||'resumen'}"`;
+  const pAvance = (title) => panel(title,'', vis.map(c=>`<div class="bar-row" data-open="${c.id}"><span class="bar-name">${c.id} · ${esc(c.cliente)}</span><span class="bar-track"><i class="${c.progreso>=100?'ok':c.riesgo==='critico'?'danger':''}" style="width:${c.progreso}%"></i></span><span class="small muted">${c.progreso}%</span></div>`).join('') || '<div class="empty">Sin casos.</div>');
+  const pRiesgos = () => panel('Riesgos (casos activos)','', `<div class="risk-matrix">${RIESGOS.map(r=>`<div class="risk-cell ${r.id}"><b>${act.filter(c=>c.riesgo===r.id).length}</b><span>${r.label}</span></div>`).join('')}</div><div style="margin-top:12px;">${act.map(c=>`<div class="decision"><span>${c.id} · ${esc(c.cliente)}</span>${riskPill(c.riesgo)}</div>`).join('')}</div>`);
+  const pCriticos = () => panel('Casos críticos', crit.length, crit.map(c=>`<div style="margin-bottom:12px;"><div class="decision" style="border:none;padding-bottom:4px;"><b>${c.id} · ${esc(c.cliente)}</b><button class="btn sm" data-open="${c.id}">Abrir</button></div><div class="alert-list">${alertasCaso(c).filter(a=>a.nivel==='rojo').slice(0,3).map(a=>alertItemHtml({...a,c})).join('') || `<div class="alert-item"><span class="a-dot rojo"></span><div class="a-body">Riesgo ${riskLabel(c.riesgo)}</div></div>`}</div></div>`).join('') || '<div class="empty">Sin casos críticos.</div>');
+  const pDecisiones = (title) => panel(title, dec.length, dec.map((d,i)=>`<div class="decision"><div><b class="small">${d.c.id} · ${esc(d.c.cliente)}</b><div class="small">${esc(d.txt)}</div></div><button class="btn sm primary" data-dec="${i}">${d.btn}</button></div>`).join('') || '<div class="empty">Sin pendientes.</div>');
+  const pProd = (title,subt) => panel(title, subt, Object.entries(prod).map(([id,v])=>{ const tot=v.a+v.c; return `<div class="bar-row" style="cursor:default;"><span class="bar-name">${esc(pName(id))}</span><span class="bar-track"><i class="ok" style="width:${tot?Math.round(v.c/tot*100):0}%"></i></span><span class="small muted">${v.c}/${tot}</span></div>${v.v?`<div class="small" style="color:var(--danger);margin:-4px 0 6px;">${v.v} vencida(s)</div>`:''}`; }).join('') || '<div class="empty">Sin tareas.</div>');
+  const pAgenda = (title,list) => panel(title, list.length, list.slice(0,6).map(p=>`<div class="decision"><div><b class="small">${p.c.id} · ${esc(p.c.cliente)}</b><div class="small">${esc(p.x.tipo)} · ${esc(p.x.titulo)}</div><div class="small muted">${fmtFecha(p.x.fecha)} · ${diasHasta(p.x.fecha)===0?'hoy':'en '+diasHasta(p.x.fecha)+' día(s)'}</div></div><button class="btn sm" ${open(p.c,'actuaciones')}>Ver</button></div>`).join('') || '<div class="empty">Sin pendientes próximos.</div>');
+  const pTareas = (title,list) => panel(title, list.length, list.slice(0,6).map(p=>{ const d=diasHasta(p.t.fecha); return `<div class="decision"><div><b class="small">${p.c.id} · ${esc(p.t.titulo)}</b><div class="small ${d<0?'':'muted'}" ${d<0?'style="color:var(--danger);"':''}>${p.t.estado} · ${d<0?'venció hace '+(-d)+' día(s)':'vence '+fmtFecha(p.t.fecha)}</div></div><button class="btn sm" ${open(p.c,'tareas')}>Ver</button></div>`; }).join('') || '<div class="empty">Sin tareas pendientes.</div>');
+  const pEvid = (title,list) => panel(title, list.length, list.slice(0,6).map(p=>`<div class="decision"><div><b class="small">${p.c.id} · ${esc(p.m.ev)}</b><div class="small muted">${stateLabel(p.m.estado)}</div></div><button class="btn sm" ${open(p.c,'evidencias')}>Ver</button></div>`).join('') || '<div class="empty">Sin evidencias pendientes.</div>');
+  const pAlertas = () => { const al = act.flatMap(c=> alertasCaso(c).filter(a=>['rojo','naranja'].includes(a.nivel)).map(a=>({...a,c}))).slice(0,6); return panel('Alertas de riesgo', al.length, `<div class="alert-list">${al.map(a=>alertItemHtml(a,true)).join('') || '<div class="empty">Sin alertas.</div>'}</div>`); };
+
+  let kpis, fila1, fila2;
+  if(role==='socio'){
+    kpis = [kpi('',act.length,'Casos activos'), kpi('accent',avg+'%','Avance promedio'), kpi('danger',crit.length,'Casos críticos'), kpi('warn',dec.length,'Decisiones pendientes'), kpi('warn',vis.filter(c=>c.wf==='revision').length,'Casos por aprobar'), kpi('accent',iaP,'IA pendiente de revisión')];
+    fila1 = [pAvance('Avance por caso'), pRiesgos()];
+    fila2 = [pCriticos(), pDecisiones('Decisiones pendientes'), pProd('Desempeño de equipos','Tareas por responsable')];
+  } else if(role==='director'){
+    kpis = [kpi('',act.length,'Casos de mi equipo'), kpi('accent',avg+'%','Avance promedio'), kpi('danger',crit.length,'Casos críticos'), kpi('danger',venc(tareasEq).length,'Tareas vencidas'), kpi('warn',dec.length,'Revisiones pendientes'), kpi('warn',proxVenc,'Vencimientos próximos')];
+    fila1 = [pAvance('Avance de los casos del equipo'), pAgenda('Audiencias y actuaciones próximas', agenda)];
+    fila2 = [pDecisiones('Revisiones pendientes'), pAlertas(), pProd('Productividad del equipo','Abogados e Investigadores')];
+  } else if(role==='abogado'){
+    kpis = [kpi('',act.length,'Mis casos activos'), kpi('accent',misTareas.length,'Mis tareas pendientes'), kpi('danger',venc(misTareas).length,'Tareas vencidas'), kpi('warn',agendaMia.length,'Audiencias y actuaciones próximas'), kpi('warn',evPend.length,'Evidencias por verificar'), kpi('accent',iaP,'IA pendiente de mi revisión')];
+    fila1 = [pAvance('Avance de mis casos'), pAgenda('Mis audiencias y actuaciones', agendaMia)];
+    fila2 = [pTareas('Mis tareas pendientes', misTareas), pEvid('Entregas del Investigador por validar', evInvRev.concat(evInvPend)), pAlertas()];
+  } else {
+    kpis = [kpi('',act.length,'Mis asignaciones'), kpi('accent',misTareas.length,'Mis tareas pendientes'), kpi('danger',venc(misTareas).length,'Tareas vencidas'), kpi('warn',trabajoCampo.length,'Entrevistas y visitas próximas'), kpi('warn',evInvPend.length,'Evidencias por recolectar'), kpi('accent',evInvRev.length,'Entregas en revisión del Abogado')];
+    fila1 = [pAvance('Avance de mis asignaciones'), pAgenda('Mis entrevistas y visitas', trabajoCampo)];
+    fila2 = [pTareas('Mis tareas pendientes', misTareas), pEvid('Evidencias por recolectar y entregar', evInvPend.concat(evInvRev)), pAlertas()];
+  }
   B.innerHTML = `
     <div class="ex-dashboard">
-    <div class="kpi-grid">
-      <div class="kpi"><b>${act.length}</b><span>Casos activos</span></div>
-      <div class="kpi accent"><b>${avg}%</b><span>Avance promedio</span></div>
-      <div class="kpi danger"><b>${crit.length}</b><span>Casos críticos</span></div>
-      <div class="kpi warn"><b>${dec.length}</b><span>Decisiones pendientes</span></div>
-      <div class="kpi danger"><b>${tVenc.length}</b><span>Tareas vencidas</span></div>
-      <div class="kpi accent"><b>${iaP}</b><span>IA pendiente de revisión</span></div>
-    </div>
-    <div class="ex-row">
-      <div class="panel"><div class="panel-head"><h3>Avance por caso</h3></div>
-        <div class="ex-panel-body">${vis.map(c=>`<div class="bar-row" data-open="${c.id}"><span class="bar-name">${c.id} · ${esc(c.cliente)}</span><span class="bar-track"><i class="${c.progreso>=100?'ok':c.riesgo==='critico'?'danger':''}" style="width:${c.progreso}%"></i></span><span class="small muted">${c.progreso}%</span></div>`).join('')}</div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Riesgos (casos activos)</h3></div>
-        <div class="ex-panel-body">
-          <div class="risk-matrix">${RIESGOS.map(r=>`<div class="risk-cell ${r.id}"><b>${act.filter(c=>c.riesgo===r.id).length}</b><span>${r.label}</span></div>`).join('')}</div>
-          <div style="margin-top:12px;">${act.map(c=>`<div class="decision"><span>${c.id} · ${esc(c.cliente)}</span>${riskPill(c.riesgo)}</div>`).join('')}</div>
-        </div>
-      </div>
-    </div>
-    <div class="ex-row ex-row-3">
-      <div class="panel"><div class="panel-head"><h3>Casos críticos</h3><span class="muted small">${crit.length}</span></div>
-        <div class="ex-panel-body">${crit.map(c=>`<div style="margin-bottom:12px;"><div class="decision" style="border:none;padding-bottom:4px;"><b>${c.id} · ${esc(c.cliente)}</b><button class="btn sm" data-open="${c.id}">Abrir</button></div>
-          <div class="alert-list">${alertasCaso(c).filter(a=>a.nivel==='rojo').slice(0,3).map(a=>alertItemHtml({...a,c})).join('') || `<div class="alert-item"><span class="a-dot rojo"></span><div class="a-body">Riesgo ${riskLabel(c.riesgo)}</div></div>`}</div></div>`).join('') || '<div class="empty">Sin casos críticos.</div>'}</div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Decisiones pendientes</h3><span class="muted small">${dec.length}</span></div>
-        <div class="ex-panel-body">${dec.map((d,i)=>`<div class="decision"><div><b class="small">${d.c.id} · ${esc(d.c.cliente)}</b><div class="small">${esc(d.txt)}</div></div><button class="btn sm primary" data-dec="${i}">${d.btn}</button></div>`).join('') || '<div class="empty">Sin decisiones pendientes.</div>'}</div>
-      </div>
-      <div class="panel"><div class="panel-head"><h3>Productividad</h3><span class="muted small">Tareas por responsable</span></div>
-        <div class="ex-panel-body">${Object.entries(prod).map(([id,v])=>{ const tot=v.a+v.c; return `<div class="bar-row" style="cursor:default;"><span class="bar-name">${esc(pName(id))}</span><span class="bar-track"><i class="ok" style="width:${tot?Math.round(v.c/tot*100):0}%"></i></span><span class="small muted">${v.c}/${tot}</span></div>${v.v?`<div class="small" style="color:var(--danger);margin:-4px 0 6px;">${v.v} vencida(s)</div>`:''}`; }).join('')}</div>
-      </div>
-    </div>
+    <div class="kpi-grid">${kpis.join('')}</div>
+    <div class="ex-row">${fila1.join('')}</div>
+    <div class="ex-row ex-row-3">${fila2.join('')}</div>
     </div>`;
-  B.querySelectorAll('[data-open]').forEach(el=> el.addEventListener('click', ()=> abrirCasoEn(el.dataset.open, 'resumen')));
+  B.querySelectorAll('[data-open]').forEach(el=> el.addEventListener('click', ()=> abrirCasoEn(el.dataset.open, el.dataset.tab||'resumen')));
   B.querySelectorAll('[data-dec]').forEach(el=> el.addEventListener('click', ()=>{ const d=dec[+el.dataset.dec]; abrirCasoEn(d.c.id, d.tab, d.ref); }));
   bindAlertClicks(B);
 }

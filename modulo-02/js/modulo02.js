@@ -362,9 +362,10 @@ document.getElementById('topCaseChip').addEventListener('click', ()=>{ showView(
    ============================================================ */
 const roleMenu = document.getElementById('roleMenu');
 const roleMenuList = document.getElementById('roleMenuList');
+const ROLE_MENU_ORDER = ['socio','director','abogado','investigador','cliente'];
 function buildRoleMenu(){
   roleMenuList.innerHTML = '';
-  ROLES.slice().sort((a,b)=>a.order-b.order).forEach(r=>{
+  ROLES.slice().sort((a,b)=>ROLE_MENU_ORDER.indexOf(a.id)-ROLE_MENU_ORDER.indexOf(b.id)).forEach(r=>{
     const b = document.createElement('button');
     b.className = r.id===currentRoleId ? 'active' : '';
     b.innerHTML = `<span class="rm-av">${r.code}</span><span><b style="display:block;">${r.nombre}</b><span class="rm-desc">${r.participacion}</span></span>${r.id===currentRoleId ? '<span class="rm-check">'+I('check')+'</span>' : ''}`;
