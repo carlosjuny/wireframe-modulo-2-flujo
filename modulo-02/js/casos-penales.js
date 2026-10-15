@@ -1708,7 +1708,7 @@ function renderClientePortal(){
    ============================================================ */
 function onRoleChangeCP(){
   const esCliente = currentRoleId==='cliente';
-  const ETIQ_CASOS = {socio:'Casos de la firma', director:'Portafolio de casos', abogado:'Mis casos', investigador:'Mis asignaciones', cliente:'Mi caso'};
+  const ETIQ_CASOS = {socio:'Gestión de Casos', director:'Portafolio de casos', abogado:'Mis casos', investigador:'Mis asignaciones', cliente:'Mi caso'};
   setSlot('icon-slot-casos', I('folder') + `<span>${ETIQ_CASOS[currentRoleId] || 'Casos Penales'}</span>`);
   document.getElementById('icon-slot-ejecutiva').classList.toggle('hidden-by-role', !can('ejecutiva'));
   document.getElementById('icon-slot-agentes').classList.toggle('hidden-by-role', esCliente);
